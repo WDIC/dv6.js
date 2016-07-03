@@ -171,8 +171,8 @@ class DV6Parser {
   parse_word(structure) {
     const name = structure.content.match(/^#(.+?)$/)[1];
     const {properties, contents, extended} = this.parse_top_children(structure);
-    const word = {name, properties, contents};
-    return {word};
+    const word = new DV6Element('word', [new DV6Element('name', [name]), properties, contents]);
+    return word;
   }
 
   /**
@@ -223,15 +223,15 @@ class DV6Parser {
           const value = result[2];
           switch (name) {
             case 'yomi':
-              properties.push({yomi: value});
+              properties.push(new DV6Element('yomi', [value]));
               break;
             case 'qyomi':
-              properties.push({qyomi: value});
+              properties.push(new DV6Element('qyomi', [value]));
               break;
             case 'spell':
               const spell_result = value.match(/^(\w+):(.+)$/);
               if (spell_result) {
-                properties.push({spell: [{_attr: {lang: spell_result[1]}}, spell_result[2]]});
+                properties.push(new DV6Element('spell', {lang: spell_result[1]}, [spell_result[2]]));
               } else {
                 this.errors.push(element.error('spellプロパティの書式が正しくありません'));
               }
@@ -239,19 +239,19 @@ class DV6Parser {
             case 'pron':
               const pron_result = value.match(/^(\w+):(.+)$/);
               if (pron_result) {
-                properties.push({pron: [{_attr: {lang: pron_result[1]}}, pron_result[2]]});
+                properties.push(new DV6Element('pron', {lang: pron_result[1]}, [pron_result[2]]));
               } else {
                 this.errors.push(element.error('pronプロパティの書式が正しくありません'));
               }
               break;
             case 'pos':
               for (const pos of value.split(/,/)) {
-                properties.push({pos});
+                properties.push(new DV6Element('pos', [pos]));
               }
               break;
             case 'dir':
               if (value.startsWith('/') && !value.endsWith('/')) {
-                properties.push({dir: value});
+                properties.push(new DV6Element('dir', [value]));
               } else {
                 this.errors.push(element.error('dirプロパティは/で始まり/でない文字で終わるべきです'));
               }
@@ -259,7 +259,7 @@ class DV6Parser {
             case 'flag':
               const known_flags = ['SPL', 'JOKE', 'MEDICAL', 'PHARM', 'MISS', 'DQN'];
               for (const flag of value.split(/,/)) {
-                properties.push({flag});
+                properties.push(new DV6Element('flag', [flag]));
                 if (known_flags.includes(flag)) this.warnings.push(element.error(`未知のフラグ[${flag}]があります`));
               }
               break;
@@ -274,10 +274,10 @@ class DV6Parser {
                 const dates = dates_str.split(/;/);
                 const names = names_str.split(/;/);
                 const sources = sources_str ? sources_str.split(/;/) : [];
-                const author = [{_attr: {operation}}];
+                const author = new DV6Element('author', {operation});
                 for (const date of dates) {
                   if (/^\d{4}\/\d{2}\/\d{2}(?: \d{2}:\d{2}(?::\d{2})?)?$/.test(date)) {
-                    author.push({date});
+                    author.children.push(new DV6Element('date', [date]));
                   } else {
                     this.errors.push(element.error(`日付書式が間違っています[${date}]`));
                     throw 1;
@@ -285,26 +285,26 @@ class DV6Parser {
                   }
                 }
                 for (const name of names) {
-                  author.push({name});
+                  author.children.push(new DV6Element('name', [name]));
                 }
                 for (const source of sources) {
-                  author.push({source});
+                  author.children.push(new DV6Element('source', [source]));
                 }
-                properties.push({author});
+                properties.push(author);
               } else {
                 this.errors.push(element.error('authorプロパティの書式が正しくありません'));
               }
               break;
             case 'valid':
               if (/^(?:\d{4}\/\d{2}\/\d{2}|\d+ (?:day|week|month|year))$/.test(date)) {
-                properties.push({valid: value});
+                properties.push(new DV6Element('valid', [value]));
               } else {
                 this.errors.push(element.error(`日付書式が間違っています[${date}]`));
               }
               break;
             case 'expire':
               if (/^\d{4}\/\d{2}\/\d{2}$/.test(date)) {
-                properties.push({expire: value});
+                properties.push(new DV6Element('expire', [value]));
               } else {
                 this.errors.push(element.error(`日付書式が間違っています[${date}]`));
               }
@@ -318,7 +318,7 @@ class DV6Parser {
         }
       }
     }
-    return properties;
+    return new DV6Element('properties', properties);
   }
 
   /**
@@ -338,7 +338,7 @@ class DV6Parser {
         this.errors.push(element.error('内容は(記号)(空白)(内容)であるべきです'));
       }
     }
-    return contents;
+    return new DV6Element('contents', contents);
   }
 
   /**
@@ -380,6 +380,32 @@ class DV6HeadLine extends DV6Line {
   constructor(line = {}, children = []) {
     super(line);
     this.children = children;
+  }
+}
+
+class DV6Element {
+  constructor(name, arg1, arg2) {
+    this.name = name;
+    if (arg2) {
+      this.properties = arg1;
+      this.children = arg2;
+    } else {
+      if (arg1 instanceof Array) {
+        this.properties = {};
+        this.children = arg1;
+      } else {
+        this.properties = arg1;
+        this.children = [];
+      }
+    }
+  }
+
+  to_xml_object() { // for require('xml')
+    return {
+      [this.name]: this.children.map(
+        (child) => child instanceof DV6Element ? child.to_xml_object() : child
+      ).concat({_attr: this.properties})
+    };
   }
 }
 
