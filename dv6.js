@@ -14,25 +14,60 @@ class DV6 {
   }
 }
 
+/**
+ * 通信用語の基礎知識V6フォーマットパーサー
+ */
 class DV6Parser {
+  /**
+   * コンストラクタ
+   * @param {string} 通信用語の基礎知識V6フォーマットのソース文字列
+   */
   constructor(dv6) {
     this._dv6 = dv6;
     this._errors = [];
     this._warnings = [];
   }
 
+  /**
+   * ソース文字列
+   * @type {string}
+   */
   get dv6() { return this._dv6; }
 
+  /**
+   * パース結果構造
+   * @type {Object}
+   */
   get result() { return this._result; }
 
+  /**
+   * パースエラー
+   * @type {Error[]}
+   */
   get errors() { return this._errors; }
 
+  /**
+   * パース警告
+   * @type {Error[]}
+   */
   get warnings() { return this._warnings; }
 
+  /**
+   * パースが完了しているか
+   * @type {Boolean}
+   */
   get parsed() { return this.result || this.errors.length; }
 
+  /**
+   * パースが成功したか
+   * @type {Boolean}
+   */
   get success() { return this.result && !this.errors.length; }
 
+  /**
+   * パースを実行する
+   * @return {void}
+   */
   parse() {
     const dv6 = this.dv6;
     const lines = DV6Parser.dv6_to_lines(dv6);
@@ -40,6 +75,11 @@ class DV6Parser {
     this._result = this.parse_toplevel(structured_lines);
   }
 
+  /**
+   * DV6ソースを行ごとに分割する
+   * @param {string} 通信用語の基礎知識V6フォーマットのソース文字列
+   * @return {DV6Line[]} 行ごとのソース
+   */
   static dv6_to_lines(dv6) {
     const line_re = /^(\t*)((?:\\\\|\\\r?\n?|[^\\])*)(\\)?$/;
     const raw_lines = dv6.split(/\r?\n/);
@@ -75,6 +115,11 @@ class DV6Parser {
     return lines;
   }
 
+  /**
+   * 行ごとに分割されたDV6ソースを階層ごとにまとめる
+   * @param {DV6Line[]} 行ごとのソース
+   * @return {DV6HeadLine} 階層化されたソース
+   */
   static flat_to_structured_lines(lines) {
     const structure_stack = [new DV6HeadLine()];
     for (let index = 0; index < lines.length; index++) {
@@ -101,6 +146,11 @@ class DV6Parser {
     return structure_stack[0];
   }
 
+  /**
+   * トップレベルの要素をパースする
+   * @param {DV6HeadLine} 階層化されたソース
+   * @return {Object}
+   */
   parse_toplevel(structure) {
     return structure.children.map((element) => {
       if (element.is_word) {
@@ -113,6 +163,11 @@ class DV6Parser {
     }).filter((element) => element);
   }
 
+  /**
+   * 単語要素をパースする
+   * @param {DV6HeadLine} 階層化されたソース
+   * @return {Object}
+   */
   parse_word(structure) {
     const name = structure.content.match(/^#(.+?)$/)[1];
     const {properties, contents, extended} = this.parse_top_children(structure);
@@ -120,6 +175,11 @@ class DV6Parser {
     return {word};
   }
 
+  /**
+   * 単語要素のトップレベル子要素をパースする
+   * @param {DV6HeadLine} 階層化されたソース
+   * @return {Object}
+   */
   parse_top_children(structure) {
     const children = structure.children;
     let contents_begin_index = structure.children.findIndex((element) => !element.is_property);
@@ -132,6 +192,11 @@ class DV6Parser {
     return {properties, contents, extended};
   }
 
+  /**
+   * 単語要素の子要素をパースする
+   * @param {DV6HeadLine} 階層化されたソース
+   * @return {Object}
+   */
   parse_children(structure) {
     const children = structure.children;
     let contents_begin_index = structure.children.findIndex((element) => !element.is_property);
@@ -141,6 +206,11 @@ class DV6Parser {
     return {properties, contents};
   }
 
+  /**
+   * プロパティ指定をパースする
+   * @param {DV6Line[]} 行のリスト
+   * @return {Object}
+   */
   parse_properties(elements) {
     const properties = [];
     for (const element of elements) {
@@ -251,6 +321,11 @@ class DV6Parser {
     return properties;
   }
 
+  /**
+   * 記事内容をパースする
+   * @param {(DV6Line|DV6HeadLine)[]} 行のリスト
+   * @return {Object}
+   */
   parse_contents(elements) {
     const contents = [];
     for (const element of elements) {
@@ -266,9 +341,19 @@ class DV6Parser {
     return contents;
   }
 
+  /**
+   * 行内をパースする
+   * @param {DV6Line|DV6HeadLine} 行
+   * @return {Object}
+   */
   parse_inline(line) {
   }
 
+  /**
+   * 拡張機能をパースする
+   * @param {(DV6Line|DV6HeadLine)[]} 行のリスト
+   * @return {Object}
+   */
   parse_extended(elements) {
   }
 }
